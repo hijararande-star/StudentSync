@@ -1,0 +1,363 @@
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.Scanner;
+
+public class StudentSync {
+
+    static final int MAX_STUDENTS = 100;
+    static final int MAX_SUBJECTS = 8;
+    static final int PASSING_GRADE = 75;
+    static final String FILE_NAME = "students.txt";
+
+    static String[] names = new String[MAX_STUDENTS];
+    static String[] ids = new String[MAX_STUDENTS];
+    static String[] courses = new String[MAX_STUDENTS];
+    static String[] departments = new String[MAX_STUDENTS];
+    static int[] yearLevels = new int[MAX_STUDENTS];
+    static int[] subjectCounts = new int[MAX_STUDENTS];
+
+    static String[][] subjects = new String[MAX_STUDENTS][MAX_SUBJECTS];
+    static int[][] grades = new int[MAX_STUDENTS][MAX_SUBJECTS];
+    static String[][] statuses = new String[MAX_STUDENTS][MAX_SUBJECTS];
+
+    static int studentCount = 0;
+    static Scanner input = new Scanner(System.in);
+
+    public static void main(String[] args) {
+        loadFromFile();   
+
+        int choice = 0;
+        while (choice != 6) {
+            showMenu();
+            choice = readNumber("Enter your choice: ", 1, 6);
+
+            if (choice == 1) {
+                addStudent();
+            } else if (choice == 2) {
+                manageGrades();
+            } else if (choice == 3) {
+                viewAllStudents();
+            } else if (choice == 4) {
+                searchStudent();
+            } else if (choice == 5) {
+                calculateAverage();
+            } else {
+                System.out.println("\nThank you for using StudentSync. Goodbye!");
+            }
+        }
+    }
+
+    static void showMenu() {
+        System.out.println("\n==================================");
+        System.out.println("   STUDENTSYNC - MAIN MENU");
+        System.out.println("==================================");
+        System.out.println("1. Add Student");
+        System.out.println("2. Manage Grades");
+        System.out.println("3. View All Students");
+        System.out.println("4. Search Student");
+        System.out.println("5. Calculate Average");
+        System.out.println("6. Exit");
+        System.out.println("==================================");
+    }
+
+    static void addStudent() {
+        if (studentCount >= MAX_STUDENTS) {
+            System.out.println("Error: The system is full.");
+            return;
+        }
+
+        System.out.println("\n--- ADD STUDENT ---");
+        boolean valid = false;
+
+        while (!valid) {
+            System.out.print("Name: ");
+            String name = clean(input.nextLine());
+            System.out.print("Student ID: ");
+            String id = clean(input.nextLine());
+            System.out.print("Course: ");
+            String course = clean(input.nextLine());
+            System.out.print("Department: ");
+            String department = clean(input.nextLine());
+            int year = readNumber("Year Level (1-4): ", 1, 4);
+            int count = readNumber("Number of subjects (1-" + MAX_SUBJECTS + "): ", 1, MAX_SUBJECTS);
+
+            String[] subjectList = new String[count];
+            boolean subjectsOk = true;
+            for (int i = 0; i < count; i++) {
+                System.out.print("Subject " + (i + 1) + ": ");
+                subjectList[i] = clean(input.nextLine());
+                if (subjectList[i].isEmpty()) {
+                    subjectsOk = false;
+                }
+            }
+
+            if (name.isEmpty() || id.isEmpty() || course.isEmpty() || department.isEmpty() || !subjectsOk) {
+                System.out.println("\nError: No field should be empty. Please re-enter.\n");
+            } else if (findById(id) != -1) {
+                System.out.println("\nError: Student ID already exists. Please re-enter.\n");
+            } else {
+                
+                names[studentCount] = name;
+                ids[studentCount] = id;
+                courses[studentCount] = course;
+                departments[studentCount] = department;
+                yearLevels[studentCount] = year;
+                subjectCounts[studentCount] = count;
+
+                for (int i = 0; i < count; i++) {
+                    subjects[studentCount][i] = subjectList[i];
+                    grades[studentCount][i] = -1;            // 
+                    statuses[studentCount][i] = "No Grade";
+                }
+
+                studentCount++;
+                saveToFile();
+                valid = true;
+                System.out.println("\nStudent added successfully!");
+            }
+        }
+    }
+
+    static void manageGrades() {
+        System.out.println("\n--- MANAGE GRADES ---");
+        if (studentCount == 0) {
+            System.out.println("No student records yet.");
+            return;
+        }
+
+        System.out.print("Enter Student ID: ");
+        String id = input.nextLine().trim();
+        int index = findById(id);
+
+        if (index == -1) {
+            System.out.println("Record not found.");
+            return;
+        }
+
+        System.out.println("\nStudent: " + names[index]);
+        for (int i = 0; i < subjectCounts[index]; i++) {
+            System.out.println((i + 1) + ". " + subjects[index][i] + " - " + gradeText(index, i));
+        }
+        int subjectNumber = readNumber("Select subject number: ", 1, subjectCounts[index]);
+        int s = subjectNumber - 1;
+
+        System.out.println("\n1. Enter grade");
+        System.out.println("2. Mark as Dropped");
+        int option = readNumber("Choose: ", 1, 2);
+
+        if (option == 1) {
+            int grade = readNumber("Enter grade (0-100): ", 0, 100);
+            grades[index][s] = grade;
+
+            if (grade >= PASSING_GRADE) {
+                statuses[index][s] = "Passed";
+            } else {
+                statuses[index][s] = "Failed";
+            }
+        } else {
+            grades[index][s] = -1;
+            statuses[index][s] = "Dropped";
+        }
+
+        saveToFile();
+        System.out.println("\nSaved! " + subjects[index][s] + " status: " + statuses[index][s]);
+    }
+
+    static void viewAllStudents() {
+        System.out.println("\n--- ALL STUDENT RECORDS ---");
+        if (studentCount == 0) {
+            System.out.println("No student records yet.");
+            return;
+        }
+
+        for (int i = 0; i < studentCount; i++) {
+            displayStudent(i);
+        }
+        System.out.println("Total students: " + studentCount);
+    }
+
+    static void searchStudent() {
+        System.out.println("\n--- SEARCH STUDENT ---");
+        System.out.print("Enter Student ID or Name: ");
+        String keyword = input.nextLine().trim().toLowerCase();
+
+        if (keyword.isEmpty()) {
+            System.out.println("Record not found.");
+            return;
+        }
+
+        boolean found = false;
+        for (int i = 0; i < studentCount; i++) {
+            
+            if (ids[i].toLowerCase().equals(keyword) || names[i].toLowerCase().contains(keyword)) {
+                displayStudent(i);
+                found = true;
+            }
+        }
+
+        if (!found) {
+            System.out.println("Record not found.");
+        }
+    }
+
+    static void calculateAverage() {
+        System.out.println("\n--- CALCULATE AVERAGE ---");
+        if (studentCount == 0) {
+            System.out.println("No student records yet.");
+            return;
+        }
+
+        System.out.print("Enter Student ID: ");
+        String id = input.nextLine().trim();
+        int index = findById(id);
+
+        if (index == -1) {
+            System.out.println("Record not found.");
+            return;
+        }
+
+        double average = computeAverage(index);
+        System.out.println("\nStudent: " + names[index]);
+        if (average == -1) {
+            System.out.println("No grades recorded yet.");
+        } else {
+            System.out.printf("Average grade: %.2f%n", average);
+        }
+    }
+
+    static void displayStudent(int i) {
+        System.out.println("\n----------------------------------");
+        System.out.println("Name       : " + names[i]);
+        System.out.println("Student ID : " + ids[i]);
+        System.out.println("Course     : " + courses[i]);
+        System.out.println("Department : " + departments[i]);
+        System.out.println("Year Level : " + yearLevels[i]);
+        System.out.println("Subjects:");
+        for (int j = 0; j < subjectCounts[i]; j++) {
+            System.out.println("  - " + subjects[i][j] + " : " + gradeText(i, j));
+        }
+        double average = computeAverage(i);
+        if (average == -1) {
+            System.out.println("Average    : N/A");
+        } else {
+            System.out.printf("Average    : %.2f%n", average);
+        }
+        System.out.println("----------------------------------");
+    }
+    
+    static String gradeText(int student, int subject) {
+        if (statuses[student][subject].equals("Passed") || statuses[student][subject].equals("Failed")) {
+            return grades[student][subject] + " (" + statuses[student][subject] + ")";
+        }
+        return statuses[student][subject];
+    }
+
+   
+    static double computeAverage(int student) {
+        int total = 0;
+        int counted = 0;
+        for (int j = 0; j < subjectCounts[student]; j++) {
+            if (statuses[student][j].equals("Passed") || statuses[student][j].equals("Failed")) {
+                total = total + grades[student][j];
+                counted++;
+            }
+        }
+        if (counted == 0) {
+            return -1;
+        }
+        return (double) total / counted;
+    }
+
+    static int findById(String id) {
+        for (int i = 0; i < studentCount; i++) {
+            if (ids[i].equalsIgnoreCase(id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static int readNumber(String message, int min, int max) {
+        while (true) {
+            System.out.print(message);
+            String text = input.nextLine().trim();
+            try {
+                int number = Integer.parseInt(text);
+                if (number >= min && number <= max) {
+                    return number;
+                }
+            } catch (NumberFormatException e) {
+            
+            }
+            System.out.println("Invalid input. Enter a number from " + min + " to " + max + ".");
+        }
+    }
+
+    static String clean(String text) {
+        text = text.trim();
+        text = text.replace("|", " ");
+        text = text.replace(",", " ");
+        text = text.replace(":", " ");
+        return text.trim();
+    }
+
+    static void saveToFile() {
+        try {
+            PrintWriter writer = new PrintWriter(new FileWriter(FILE_NAME));
+            for (int i = 0; i < studentCount; i++) {
+                String line = ids[i] + "|" + names[i] + "|" + courses[i] + "|" + departments[i]
+                        + "|" + yearLevels[i] + "|" + subjectCounts[i] + "|";
+
+                for (int j = 0; j < subjectCounts[i]; j++) {
+                    line = line + subjects[i][j] + ":" + grades[i][j] + ":" + statuses[i][j];
+                    if (j < subjectCounts[i] - 1) {
+                        line = line + ",";
+                    }
+                }
+                writer.println(line);
+            }
+            writer.close();
+        } catch (IOException e) {
+            System.out.println("Error: Could not save to file.");
+        }
+    }
+
+    static void loadFromFile() {
+        File file = new File(FILE_NAME);
+        if (!file.exists()) {
+            return;  
+        }
+
+        try {
+            Scanner reader = new Scanner(file);
+            while (reader.hasNextLine() && studentCount < MAX_STUDENTS) {
+                String line = reader.nextLine();
+                if (line.trim().isEmpty()) {
+                    continue;
+                }
+
+                String[] parts = line.split("\\|");
+                ids[studentCount] = parts[0];
+                names[studentCount] = parts[1];
+                courses[studentCount] = parts[2];
+                departments[studentCount] = parts[3];
+                yearLevels[studentCount] = Integer.parseInt(parts[4]);
+                subjectCounts[studentCount] = Integer.parseInt(parts[5]);
+
+                String[] subjectParts = parts[6].split(",");
+                for (int j = 0; j < subjectCounts[studentCount]; j++) {
+                    String[] details = subjectParts[j].split(":");
+                    subjects[studentCount][j] = details[0];
+                    grades[studentCount][j] = Integer.parseInt(details[1]);
+                    statuses[studentCount][j] = details[2];
+                }
+                studentCount++;
+            }
+            reader.close();
+        } catch (Exception e) {
+            System.out.println("Error: Could not read the file.");
+        }
+    }
+}
